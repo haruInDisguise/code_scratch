@@ -1,5 +1,5 @@
 CC = clang
-CFLAGS = -O0 -ggdb
+CFLAGS = -O0 -Wpedantic -Wall
 
 TARGET = ./pv_splice
 SRC = pv_splice.c

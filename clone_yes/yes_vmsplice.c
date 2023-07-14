@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
     char *msg = NULL;
 
     if(argc <= 1)
-        msg = "yes";
+        msg = "y\n";
     else
         msg = argv[1];
 
@@ -36,9 +36,9 @@ int main(int argc, char **argv) {
     while(buffer_index++ < buffer_nmemb)
         memcpy(buffer + msg_size * buffer_index, msg, msg_size);
 
-    // Increase pipesize
     fcntl(1, F_SETPIPE_SZ, PIPESIZE);
 
+    // Populate IOV buffers
     struct iovec iov_array[VM_LIMIT];
     for(int i = 0; i < VM_LIMIT; i++) {
         iov_array[i].iov_base = buffer;

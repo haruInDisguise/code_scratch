@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+
 #include <sys/stat.h>
 
 #include <glbinding/gl/gl.h>

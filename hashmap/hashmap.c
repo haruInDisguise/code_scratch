@@ -3,16 +3,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define INITIAL_SIZE 127
+#define INITIAL_SIZE 41
 #define DELETED_MARK ((uint32_t *)-1)
 
-#define UPSIZE_AT_PERCENT 60
-#define DOWNSIZE_AT_PERCENT 50
+#define UPSIZE_AT_PERCENT 70
 
 #define DOUBLEHASH_TIMEOUT 120
 
-#if defined(DEBUG) || !defined(NDEBUG)
+#if defined(HT_DEBUG)
 static struct {
     uint32_t max_collisions;
     uint32_t total_collisions;
@@ -59,23 +57,47 @@ static struct {
 #define DEBUG_UPDATE_STATS(value) (void)0
 #define DEBUG_UPDATE_EMPTY_STATS(value) (void)0
 #define DEBUG_REPORT_STATS(map) (void)0
-#endif
+#endif // HT_DEBUG
+
+static uint32_t find_next_prime(uint32_t start) {
+    // FIXME: GOTO abuse?
+    uint32_t prime = start;
+    goto start;
+next:
+    prime++;
+start:
+    if(prime % 2 == 0 || prime % 3 == 0)
+        goto next;
+
+    int divisor = 6;
+
+    while(divisor * divisor - 2 * divisor + 1 <= prime) {
+        if (prime % (divisor - 1) == 0)
+            goto next;
+        if (prime % (divisor + 1) == 0)
+            goto next;
+
+        divisor += 6;
+    }
+
+    return prime;
+}
 
 // For DoubleHashing, I use the infamous FNV-a1 hashing algorithm.
 // see: http://www.isthe.com/chongo/tech/comp/fnv/
-static inline uint32_t double_hashing_func(char *key, uint32_t key_size) {
-    uint32_t hash = 216613626;
+static inline uint64_t double_hashing_func(char *key, uint32_t key_size) {
+    uint64_t hash = 14695981039346656037ull;
 
     for (uint32_t i = 0; i < key_size; i++) {
         hash ^= key[i];
-        hash *= 16777619;
+        hash *= 1099511628211ull;
     }
 
     return hash;
 }
 
-static inline uint32_t get_hash(hm_HashMap *map, char *key, uint32_t key_size, uint32_t attempt) {
-    uint32_t hash = map->hash_func(key, key_size, map->userdata);
+static inline uint64_t get_hash(hm_HashMap *map, char *key, uint32_t key_size, uint32_t attempt) {
+    uint64_t hash = map->hash_func(key, key_size, map->userdata);
 
     if (attempt > 0) {
         hash = hash + attempt * (double_hashing_func(key, key_size) + 1);
@@ -87,7 +109,7 @@ static inline uint32_t get_hash(hm_HashMap *map, char *key, uint32_t key_size, u
 // Find an empty or deleted bucket
 static hm_Bucket *find_empty(hm_HashMap *map, char *key, uint32_t key_size) {
     for (uint32_t attempt = 0; attempt < DOUBLEHASH_TIMEOUT; attempt++) {
-        uint32_t index = get_hash(map, key, key_size, attempt);
+        uint64_t index = get_hash(map, key, key_size, attempt);
 
         if (map->buckets[index].value == DELETED_MARK || map->buckets[index].value == NULL) {
             DEBUG_UPDATE_EMPTY_STATS(attempt);
@@ -102,7 +124,7 @@ static hm_Bucket *find_empty(hm_HashMap *map, char *key, uint32_t key_size) {
 // Find an occupied bucket, skimming past deleted/no-match entries
 static hm_Bucket *find_occupied(hm_HashMap *map, char *key, uint32_t key_size) {
     for (uint32_t attempt = 0; attempt < DOUBLEHASH_TIMEOUT; attempt++) {
-        uint32_t index = get_hash(map, key, key_size, attempt) % map->total_capacity;
+        uint64_t index = get_hash(map, key, key_size, attempt) % (uint64_t)map->total_capacity;
 
         if (map->buckets[index].value == NULL) {
             return NULL;
@@ -128,7 +150,6 @@ static void resize(hm_HashMap *map, uint32_t new_size) {
     };
 
     for (uint32_t i = 0; i < map->total_capacity; i++) {
-        // We also copy deleted buckets
         if (map->buckets[i].value != NULL)
             hm_insert(&new_map, map->buckets[i].key, map->buckets[i].key_size,
                       map->buckets[i].value);
@@ -149,7 +170,8 @@ void *hm_get(hm_HashMap *map, char *key, uint32_t key_size) {
 
 void hm_insert(hm_HashMap *map, char *key, uint32_t key_size, void *value) {
     if ((map->used_capacity + 1) * 100 / map->total_capacity >= UPSIZE_AT_PERCENT)
-        resize(map, map->total_capacity * 2);
+        //resize(map, find_next_prime(map->total_capacity * 1.5));
+        resize(map, find_next_prime(map->total_capacity * 2));
 
     hm_Bucket *bucket = find_empty(map, key, key_size);
 

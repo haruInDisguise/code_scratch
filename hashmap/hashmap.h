@@ -4,7 +4,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef uint32_t (*hm_hash_func)(char *value, uint32_t key_size, void *userdata);
+//#define HT_DEBUG
+
+typedef uint64_t (*hm_hash_func)(char *value, uint32_t key_size, void *userdata);
 
 typedef struct {
     uint32_t key_size;

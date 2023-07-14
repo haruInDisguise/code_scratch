@@ -8,7 +8,7 @@
 
 #define PIPESIZE (1 * 1024 * 1024)
 
-// Currently, the thoughput is measured for every second
+// Currently, the throughput is measured for every second
 // individually, instead of calculating an average value
 
 void print_status(size_t bytes, size_t duration) {

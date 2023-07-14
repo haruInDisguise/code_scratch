@@ -15,4 +15,4 @@ $(TARGET): %: %.o
 
 $(OBJ): $(BUILD_PATH)/%.o: %.s
 	@mkdir -p $(dir $@)
-	nasm -w+all -O0 -F dwarf -g -f elf64 $< -o $@
+	yasm -w+all -O0 -F dwarf -g -f elf64 $< -o $@

@@ -12,9 +12,6 @@
 
 #include "hashmap.h"
 
-#define NUM_ELEMENTS 47
-#define KEY_SIZE 16
-
 static struct {
     uint32_t total_pairs;
     uint32_t input_length;
@@ -85,6 +82,18 @@ static uint32_t fnva1_hash_func(char *key, uint32_t key_size, void *udata) {
     return hash;
 }
 
+// see: http://www.isthe.com/chongo/tech/comp/fnv/
+static inline uint64_t fnva1_hash_func_64(char *key, uint32_t key_size, void *udata) {
+    uint64_t hash = 14695981039346656037ull;
+
+    for (uint32_t i = 0; i < key_size; i++) {
+        hash ^= key[i];
+        hash *= 1099511628211ul;
+    }
+
+    return hash;
+}
+
 void test_hash_func(hm_hash_func hash_func, void *userdata) {
     hm_HashMap *map = hm_new(hash_func, userdata);
     struct KeyValuePair *pair;
@@ -124,8 +133,6 @@ void test_hash_func(hm_hash_func hash_func, void *userdata) {
     hm_destroy(map);
 }
 
-#if 1
-
 static void format_nsec_timestamp(char *buffer, uint32_t size, uint64_t timestamp) {
     uint32_t nsec = timestamp % 1000;
     timestamp /= 1000;
@@ -135,7 +142,7 @@ static void format_nsec_timestamp(char *buffer, uint32_t size, uint64_t timestam
     timestamp /= 1000;
     uint32_t sec = timestamp % 1000;
 
-    snprintf(buffer, size, "%03u:%03u:%03u:%03u (SEC:MS:PS:NS)\n", sec, msec, psec, nsec);
+    snprintf(buffer, size, "%03u:%03u:%03u:%03u (SEC:MS:PS:NS)", sec, msec, psec, nsec);
 }
 
 // An amazing StackOverflow thread: https://softwareengineering.stackexchange.com/questions/49550/which-hashing-algorithm-is-best-for-uniqueness-and-speed
@@ -146,7 +153,7 @@ int main(int argc, char **argv) {
     struct timespec start, end;
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
-    test_hash_func(fnva1_hash_func, NULL);
+    test_hash_func(fnva1_hash_func_64, NULL);
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
 
     static char buffer[32] = {0};
@@ -157,16 +164,3 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-
-#else
-int main(void) {
-    hm_HashMap *map = hm_new(fnva1_hash_func, NULL);
-
-    for(uint32_t i = 0; i < 1000; i ++) {
-        char *value = "i do not exist";
-        asssert(hm_get(map, value, strlen(value)) == NULL);
-    }
-
-    return 0;
-}
-#endif

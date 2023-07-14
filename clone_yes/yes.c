@@ -12,9 +12,7 @@ int main(int argc, char **argv) {
     else
         msg = argv[1];
 
-    size_t msg_size = 0;
-    char *msg_index = msg;
-    while (*(msg_index++) != '\0') msg_size++;
+    size_t msg_size = strlen(*argv);
 
     const size_t buffer_nmemb = 2 * PAGE_SIZE;
     const size_t buffer_total_size = buffer_nmemb * msg_size;
