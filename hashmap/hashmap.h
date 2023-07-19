@@ -3,15 +3,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-typedef uint32_t (*hm_hash_func)(char *value, uint32_t seed);
+typedef uint32_t (*hm_hash_func)(char *value, uint32_t key_size, void *userdata);
 
 typedef struct {
-    uint32_t key_length;
-    uint8_t occupied;
+    uint32_t key_size;
     void *value;
     char *key;
 } hm_Bucket;
@@ -19,18 +15,16 @@ typedef struct {
 typedef struct {
     uint32_t total_capacity;
     uint32_t used_capacity;
-    uint32_t seed_one;
-    uint32_t seed_two;
-
     hm_hash_func hash_func;
+    void *userdata;
     hm_Bucket *buckets;
 } hm_HashMap;
 
-void hm_insert(hm_HashMap *map, char *key, void *value);
-void *hm_get(hm_HashMap *map, char *key);
-void hm_remove(hm_HashMap *map, char *key);
+void hm_insert(hm_HashMap *map, char *key, uint32_t key_size, void *value);
+void *hm_get(hm_HashMap *map, char *key, uint32_t key_size);
+void hm_delete(hm_HashMap *map, char *key, uint32_t key_size);
 
-hm_HashMap *hm_new(hm_hash_func hash_func, uint64_t seed_one, uint64_t seed_two);
+hm_HashMap *hm_new(hm_hash_func hash_func, void *udata);
 void hm_destroy(hm_HashMap *map);
 
 #endif
