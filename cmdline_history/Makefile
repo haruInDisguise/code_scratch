@@ -6,11 +6,14 @@ build:
 	$(CC) $(CFLAGS) main.c -o main
 
 gdbserver: build
-	gdbserver localhost:4242 ./main
+	gdbserver --multi localhost:4242
 	stty sane
 
 gdb:
-	gdb -ex 'target remote localhost:4242' -ex 'tbreak cmdline_update' -ex 'continue'
+	gdb \
+		-ex 'target extended-remote localhost:4242' \
+		-ex 'set remote exec-file ./main' \
+		-ex 'start'
 
 clean:
 	rm -f main
