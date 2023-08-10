@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <signal.h>
@@ -8,7 +7,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/ioctl.h>
 #include <termios.h>
 
 #define ASSERT(condition)                                                                          \
@@ -19,12 +17,22 @@
         }                                                                                          \
     } while (0)
 
+/* This is a POF implementation for a simple "command line history system" */
+
 /* The Issue:
- * By default, the terminal starts out in "cannonical mode". In this mode, keyboard
+ * By default, the terminal starts out in "cooked/cannonical mode". In this mode, keyboard
  * output is only send to the program when the emulator encounters a linebreak (pressing enter sends
  * a linebreak by default). However we want to perform actions without having to wait for the
  * terminal, so we can view a previous entry by pressing 'UP' or quit the program by hitting 'ESC'
- * This is where platform specific abstraction comes into play. */
+ * This is where platform specific abstraction comes into play.
+ *
+ * It is up to the terminal emulator to decide, how it wants to process user input and expose it to
+ * the runnig application. 'Alacritty' might send the following byte sequence when the user presses
+ * the UP key: '^[[A', while 'st' could do things very differently. We would have to implement an
+ * additonal layer of abstraction for most terminal emulators. An example: The fish shell handles
+ * this task by relying on the curses library:
+ * https://github.com/fish-shell/fish-shell/blob/master/src/input.cpp.
+ * */
 
 static struct termios term_attributes_default;
 
@@ -90,7 +98,7 @@ static void terminate(uint8_t status) {
     exit(status);
 }
 
-/* What's save inside a signal handler?
+/* What is save to do inside a signal handler?
  * https://stackoverflow.com/questions/16891019/how-to-avoid-using-printf-in-a-signal-handler?noredirect=1&lq=1
  */
 static void handle_exit_signal(int signal) { terminate(1); }
@@ -98,11 +106,12 @@ static void handle_exit_signal(int signal) { terminate(1); }
 /* Ideas about how to handle command line history:
  * 1. When a line is submitted, it is added to a ring-buffer
  *      - Empy lines/only blanks are ignored
- *      - Submitting resets the currently selected entry, if any
- * 2. Moving up/down returnes the next/previous valid entry.
+ *      - Submitting resets the currently selected entry
+ * 2. Moving up/down returnes the next/previous valid entry
  *      - Typing will NOT overwrite the selected entry
  *      - Typed input will be saved when moving up the history
- *      - Moving all the way down again will restore saved input
+ *      - Moving all the way down again (beyond the newest entry)
+ *        will restore saved input
  *
  * - Since the history is implemented as a ring buffer, it can only
  *   grow and is will subsequently overwrite previous entries.
@@ -171,7 +180,7 @@ static struct {
     InputEntry submission;
 } cmdline_state = {0};
 
-/* Avoid adding empty entries */
+/* Avoid adding entries that start with blanks */
 static uint8_t entry_is_valid(InputEntry *entry) {
     if (entry->length == 0)
         return 1;
@@ -200,8 +209,7 @@ void history_add_entry(InputEntry *entry) {
             (history_state.newest_entry_index + 1) % HISTORY_MAX_ENTRIES;
     }
 
-    // TODO: Ignore supsequent duplicate entries
-
+    // TODO: Ignore duplicate entries
     InputEntry *top_entry = &history_state.history[history_state.newest_entry_index];
     memcpy(top_entry, entry, sizeof(*entry));
 
@@ -212,6 +220,7 @@ void history_add_entry(InputEntry *entry) {
 /* Get the next entry from the history buffer and places it into 'entry'.
  * See 'HistoryStatus' for an explanation of the return values. */
 HistoryStatus history_get_next_entry(InputEntry **entry) {
+    ASSERT(entry != NULL);
     uint32_t index = history_state.selected_entry_index;
 
     /* The list is empty */
@@ -247,6 +256,7 @@ HistoryStatus history_get_next_entry(InputEntry **entry) {
 
 /* Get the previous entry from the history buffer. */
 HistoryStatus history_get_previous_entry(InputEntry **entry) {
+    ASSERT(entry != NULL);
     uint32_t index = history_state.selected_entry_index;
 
     /* List is empty */
@@ -284,6 +294,7 @@ void input_save_primary(void) {
 }
 
 void input_overwrite_primary(InputEntry *entry) {
+    ASSERT(entry != NULL);
     memcpy(&input_state.primary_entry, entry, sizeof(input_state.primary_entry));
 }
 
@@ -329,8 +340,8 @@ static KeyCode cmdline_read_keycode(void) {
         char buffer[3];
 
         // FIXME: Just returning KEY_ESC means that any multi byte keycode that
-        //        is not explicitly handled will terminate the program if ((nread =
-        //        read(STDIN_FILENO, buffer, 1) != 1))
+        //        is not explicitly handled will terminate the program
+        //        if ((nread = read(STDIN_FILENO, buffer, 1) != 1))
         if ((nread = read(STDIN_FILENO, buffer, 1) != 1))
             return KEY_ESC; /* ESC */
         if ((nread = read(STDIN_FILENO, buffer + 1, 1) != 1))
@@ -356,6 +367,8 @@ static KeyCode cmdline_read_keycode(void) {
 }
 
 static inline void cmdline_handle_key_up(InputEntry *current_entry, uint8_t *entry_modified) {
+    ASSERT(current_entry != NULL);
+    ASSERT(entry_modified != NULL);
     HistoryStatus hist_status = history_get_next_entry(&current_entry);
 
     switch (hist_status) {
@@ -378,6 +391,8 @@ static inline void cmdline_handle_key_up(InputEntry *current_entry, uint8_t *ent
 }
 
 static inline void cmdline_handle_key_down(InputEntry *current_entry, uint8_t *entry_modified) {
+    ASSERT(current_entry != NULL);
+    ASSERT(entry_modified != NULL);
     HistoryStatus hist_status = history_get_previous_entry(&current_entry);
 
     switch (hist_status) {
@@ -412,7 +427,9 @@ void cmdline_render_entry(InputEntry *entry) {
     }
 }
 
+/* Read and process input */
 void cmdline_update(unsigned char *is_running) {
+    ASSERT(is_running != NULL);
     InputEntry *current_input = &input_state.primary_entry;
     uint8_t input_modified = 0;
 
@@ -436,7 +453,8 @@ void cmdline_update(unsigned char *is_running) {
     case KEY_ENTER:
         if (entry_is_valid(current_input) == 1) {
             history_add_entry(current_input);
-            memcpy(&cmdline_state.submission, &input_state.primary_entry, sizeof(cmdline_state.submission));
+            memcpy(&cmdline_state.submission, &input_state.primary_entry,
+                   sizeof(cmdline_state.submission));
         }
 
         input_clear();
