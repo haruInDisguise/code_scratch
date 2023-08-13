@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -96,7 +97,9 @@ void test_hash_func(hm_hash_func hash_func, void *userdata) {
 
     for(uint32_t i = 0; i < state.total_pairs; i++) {
         pair = state.key_value_pairs + i;
-        assert(*(uint32_t*)hm_get(map, pair->key, pair->key_size) == pair->value);
+        uint32_t *value = hm_get(map, pair->key, pair->key_size);
+        assert(value != NULL);
+        assert(*value == pair->value);
     }
 
     for(uint32_t i = 100000; i < 200000; i++) {
@@ -114,6 +117,7 @@ void test_hash_func(hm_hash_func hash_func, void *userdata) {
             continue;
         }
 
+        assert(value != NULL);
         assert(*(uint32_t*)value == pair->value);
     }
 
@@ -122,12 +126,32 @@ void test_hash_func(hm_hash_func hash_func, void *userdata) {
 
 #if 1
 
+static void format_nsec_timestamp(char *buffer, uint32_t size, uint64_t timestamp) {
+    uint32_t nsec = timestamp % 1000;
+    timestamp /= 1000;
+    uint32_t psec = timestamp % 1000;
+    timestamp /= 1000;
+    uint32_t msec = timestamp % 1000;
+    timestamp /= 1000;
+    uint32_t sec = timestamp % 1000;
+
+    snprintf(buffer, size, "%03u:%03u:%03u:%03u (SEC:MS:PS:NS)\n", sec, msec, psec, nsec);
+}
+
 // An amazing StackOverflow thread: https://softwareengineering.stackexchange.com/questions/49550/which-hashing-algorithm-is-best-for-uniqueness-and-speed
 int main(int argc, char **argv) {
     load_preprocessed_wordlist();
     puts("Processed wordlist!");
 
+    struct timespec start, end;
+
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
     test_hash_func(fnva1_hash_func, NULL);
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
+
+    static char buffer[32] = {0};
+    format_nsec_timestamp(buffer, 32, end.tv_nsec - start.tv_nsec);
+    printf("Time: %s\n", buffer);
 
     close_preprocessed_wordlist();
 
