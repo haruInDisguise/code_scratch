@@ -1,0 +1,34 @@
+{
+    "buildings": [
+        {
+            "name": "Cursor",
+            "id": "product0",
+            "price": 15,
+            "cps": 0.1,
+        },
+        {
+            "name": "Grandma",
+            "id": "product1",
+            "price": 100,
+            "cps": 1,
+        },
+        {
+            "name": "Farm",
+            "id": "product2",
+            "price": 1100,
+            "cps": 8,
+        },
+        {
+            "name": "Mine",
+            "id": "product3",
+            "price": 12000,
+            "cps": 47,
+        },
+        {
+            "name": "Factory",
+            "id": "product4",
+            "price": 130000,
+            "cps": 260,
+        }
+    ]
+}
